@@ -1,0 +1,311 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>JARVIS Voxel Builder</title>
+
+<script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@mediapipe/hands/hands.js"></script>
+
+<style>
+body{
+margin:0;
+overflow:hidden;
+background:black;
+font-family:Arial;
+}
+
+canvas{
+position:fixed;
+left:0;
+top:0;
+width:100vw;
+height:100vh;
+}
+
+video{
+position:fixed;
+right:10px;
+top:10px;
+width:240px;
+border:2px solid cyan;
+border-radius:10px;
+transform:scaleX(-1);
+z-index:10;
+}
+
+#hud{
+position:fixed;
+left:10px;
+top:10px;
+color:cyan;
+border:1px solid cyan;
+padding:10px;
+background:rgba(0,0,0,.7);
+z-index:10;
+}
+
+#crosshair{
+position:fixed;
+width:20px;
+height:20px;
+border:2px solid lime;
+border-radius:50%;
+pointer-events:none;
+z-index:11;
+}
+</style>
+</head>
+
+<body>
+
+<div id="hud">
+JARVIS VOXEL BUILDER<br>
+✋ Gerakkan telunjuk<br>
+🤏 Cubit = Hapus blok<br>
+C = Clear
+</div>
+
+<div id="crosshair"></div>
+
+<canvas id="canvas"></canvas>
+
+<video
+id="video"
+autoplay
+playsinline
+muted>
+</video>
+
+<script>
+
+const canvas =
+document.getElementById("canvas");
+
+const ctx =
+canvas.getContext("2d");
+
+canvas.width =
+window.innerWidth;
+
+canvas.height =
+window.innerHeight;
+
+const crosshair =
+document.getElementById("crosshair");
+
+const video =
+document.getElementById("video");
+
+const size = 20;
+
+const blocks = {};
+
+function drawBlock(x,y,color){
+
+ctx.fillStyle=color;
+
+ctx.fillRect(
+x,
+y,
+size,
+size
+);
+
+ctx.strokeStyle="#003333";
+
+ctx.strokeRect(
+x,
+y,
+size,
+size
+);
+
+}
+
+function saveBlock(x,y){
+
+blocks[x+"_"+y]=true;
+
+}
+
+function removeBlock(x,y){
+
+delete blocks[x+"_"+y];
+
+ctx.clearRect(
+x,
+y,
+size,
+size
+);
+
+}
+
+const hands =
+new Hands({
+
+locateFile:file=>
+`https://cdn.jsdelivr.net/npm/@mediapipe/hands/${file}`
+
+});
+
+hands.setOptions({
+
+maxNumHands:1,
+modelComplexity:1,
+minDetectionConfidence:0.7,
+minTrackingConfidence:0.7
+
+});
+
+let lastPlace = 0;
+
+hands.onResults(results=>{
+
+if(
+!results.multiHandLandmarks ||
+results.multiHandLandmarks.length===0
+) return;
+
+const hand =
+results.multiHandLandmarks[0];
+
+const index =
+hand[8];
+
+const thumb =
+hand[4];
+
+const x =
+window.innerWidth -
+(index.x*window.innerWidth);
+
+const y =
+index.y*window.innerHeight;
+
+crosshair.style.left =
+(x-10)+"px";
+
+crosshair.style.top =
+(y-10)+"px";
+
+const gx =
+Math.floor(x/size)*size;
+
+const gy =
+Math.floor(y/size)*size;
+
+const key =
+gx+"_"+gy;
+
+const now =
+Date.now();
+
+if(now-lastPlace>80){
+
+if(!blocks[key]){
+
+drawBlock(
+gx,
+gy,
+"#00ffff"
+);
+
+saveBlock(
+gx,
+gy
+);
+
+}
+
+lastPlace=now;
+
+}
+
+const dist = Math.hypot(
+
+thumb.x-index.x,
+
+thumb.y-index.y
+
+);
+
+if(dist<0.05){
+
+removeBlock(
+gx,
+gy
+);
+
+}
+
+});
+
+async function start(){
+
+const stream =
+await navigator.mediaDevices.getUserMedia({
+
+video:true
+
+});
+
+video.srcObject =
+stream;
+
+const camera =
+new Camera(video,{
+
+onFrame:async()=>{
+
+await hands.send({
+
+image:video
+
+});
+
+},
+
+width:640,
+height:480
+
+});
+
+camera.start();
+
+}
+
+start();
+
+document.addEventListener(
+"keydown",
+e=>{
+
+if(e.key.toLowerCase()==="c"){
+
+ctx.clearRect(
+0,
+0,
+canvas.width,
+canvas.height
+);
+
+for(
+const k in blocks
+){
+
+delete blocks[k];
+
+}
+
+}
+
+}
+);
+
+</script>
+
+</body>
+</html>
